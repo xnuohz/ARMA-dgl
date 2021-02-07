@@ -10,9 +10,10 @@ The codebase is implemented in Python 3.6. For version requirement of packages, 
 ```
 dgl 0.6a210202
 numpy 1.19.5
+networkx 2.5
+scikit-learn 0.24.1
 tqdm 4.56.0
 torch 1.7.0s
-scikit-learn 0.24.1
 ```
 
 ### The graph datasets used in this example

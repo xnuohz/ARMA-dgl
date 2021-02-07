@@ -6,6 +6,8 @@ import torch
 import torch.optim as optim
 import torch.nn as nn
 import numpy as np
+import networkx as nx
+import dgl
 
 from dgl.data import LegacyTUDataset
 from dgl.data.utils import split_dataset
@@ -14,12 +16,42 @@ from tqdm import trange
 from model import ARMA4GC
 
 def add_degree_feature(dataset):
+    min_degree, max_degree = 1e9, 0
+    for g, _ in dataset:
+        min_degree = min(min_degree, g.in_degrees().min().item())
+        max_degree = max(max_degree, g.in_degrees().max().item())
+    n_dim = max_degree - min_degree + 1
+    for g, _ in dataset:
+        n_nodes = g.num_nodes()
+        degree_feat = torch.zeros([n_nodes, n_dim])
+        degree_feat[:, g.in_degrees() - min_degree] = 1.
+        g.ndata['feat'] = torch.cat([g.ndata['feat'], degree_feat], dim=1)
     return dataset
 
 def add_clustering_coefficients_feature(dataset):
+    for g, _ in dataset:
+        nx_g = dgl.to_networkx(dgl.to_homogeneous(g))
+        # MultiDiGraph -> Graph
+        nx_g = nx.Graph(nx_g)
+        cc = torch.tensor(list(nx.clustering(nx_g).values())).view([-1, 1])
+        g.ndata['feat'] = torch.cat([g.ndata['feat'], cc], dim=1)
     return dataset
 
 def add_node_label_feature(dataset):
+    # load node labels
+    node_labels = dataset._idx_from_zero(np.loadtxt(dataset._file_path("node_labels"), dtype=int))
+    one_hot_node_labels = dataset._to_onehot(node_labels)
+    # load graph indicator
+    indicator = dataset._idx_from_zero(np.genfromtxt(dataset._file_path("graph_indicator"), dtype=int))
+    # convert node idx for each graph
+    node_idx_list = []
+    for idx in range(np.max(indicator) + 1):
+        node_idx = np.where(indicator == idx)
+        node_idx_list.append(node_idx[0])
+    # add node label feature
+    for idx, g in zip(node_idx_list, dataset.graph_lists):
+        node_labels_tensor = torch.tensor(one_hot_node_labels[idx, :])
+        g.ndata['feat'] = torch.cat([g.ndata['feat'], node_labels_tensor], dim=1)
     return dataset
 
 def train(device, model, opt, loss_fn, train_loader):
@@ -50,7 +82,7 @@ def evaluate(device, model, valid_loader):
         g = g.to(device)
         labels = labels.long().to(device)
         logits = model(g, g.ndata['feat'].float())
-        predictions = logits.argmax(dim=1)
+        predictions = logits.argmax(dim=1) + 1
         acc += predictions.eq(labels).sum().item()
         n_samples += len(labels)
     

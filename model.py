@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import dgl
 import dgl.function as fn
 
+from dgl.nn.pytorch.glob import AvgPooling
+
 class ARMAConv(nn.Module):
     def __init__(self,
                  in_dim,
@@ -128,6 +130,7 @@ class ARMA4GC(nn.Module):
                               activation=activation,
                               dropout=dropout)
         
+        self.pool = AvgPooling()
         self.dropout = nn.Dropout(p=dropout)
         self.fc = nn.Linear(hid_dim, out_dim)
 
@@ -138,5 +141,6 @@ class ARMA4GC(nn.Module):
         feats = self.dropout(feats)
         feats = F.relu(self.conv3(g, feats))
         feats = self.dropout(feats)
-        g.ndata['h'] = self.fc(feats)
-        return dgl.readout_nodes(g, 'h', op='mean')
+        feats = F.relu(self.pool(g, feats))
+        feats = self.dropout(feats)
+        return self.fc(feats)
