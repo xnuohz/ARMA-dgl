@@ -140,8 +140,9 @@ if __name__ == "__main__":
 
     for _ in range(50):
         acc_lists.append(main(args))
-    
-    acc_lists_top = np.array(reversed(sorted(acc_lists)[:10])
+
+    reversed(sorted(acc_lists))
+    acc_lists_top = np.array(acc_lists[:10])
 
     mean = np.around(np.mean(acc_lists_top, axis=0), decimals=3)
     std = np.around(np.std(acc_lists_top, axis=0), decimals=3)

@@ -8,6 +8,7 @@ import torch.nn as nn
 import numpy as np
 
 from dgl.data import PPIDataset
+from dgl.dataloading import GraphDataLoader
 from tqdm import trange
 from sklearn.metrics import f1_score
 from model import ARMA4NC
@@ -18,12 +19,12 @@ def get_f1(pred, label):
     label = label.flatten()
     return f1_score(y_pred=pred, y_true=label, average='micro')
 
-def train(device, model, opt, loss_fn, train_dataset):
+def train(device, model, opt, loss_fn, train_loader):
     model.train()
     epoch_loss = 0
     f1 = []
 
-    for g in train_dataset:
+    for g in train_loader:
         g = g.to(device)
         feat = g.ndata['feat']
         label = g.ndata['label']
@@ -35,15 +36,15 @@ def train(device, model, opt, loss_fn, train_dataset):
         loss.backward()
         opt.step()
 
-    return epoch_loss / len(train_dataset), np.mean(f1)
+    return epoch_loss / len(train_loader), np.mean(f1)
 
 @torch.no_grad()
-def evaluate(device, model, loss_fn, valid_dataset):
+def evaluate(device, model, loss_fn, valid_loader):
     model.eval()
     loss = 0
     f1 = []
     
-    for g in valid_dataset:
+    for g in valid_loader:
         g = g.to(device)
         feat = g.ndata['feat']
         label = g.ndata['label']
@@ -51,7 +52,7 @@ def evaluate(device, model, loss_fn, valid_dataset):
         loss += loss_fn(logits, label)
         f1.append(get_f1(logits.detach().cpu().numpy(), label.detach().cpu().numpy()))
     
-    return loss / len(valid_dataset), np.mean(f1)
+    return loss / len(valid_loader), np.mean(f1)
 
 def main(args):
     # Step 1: Prepare graph data and retrieve train/validation/test index ============================= #
@@ -59,6 +60,11 @@ def main(args):
     train_dataset = PPIDataset(mode='train')
     valid_dataset = PPIDataset(mode='valid')
     test_dataset = PPIDataset(mode='test')
+
+    # data loader
+    train_loader = GraphDataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
+    valid_loader = GraphDataLoader(valid_dataset, batch_size=args.batch_size, shuffle=False)
+    test_loader = GraphDataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
 
     graph = train_dataset[0]
 
@@ -93,10 +99,10 @@ def main(args):
 
     for _ in epochs:
         # Training
-        train_loss, train_f1 = train(device, model, opt, loss_fn, train_dataset)
+        train_loss, train_f1 = train(device, model, opt, loss_fn, train_loader)
 
         # Validation
-        valid_loss, valid_f1 = evaluate(device, model, loss_fn, valid_dataset)
+        valid_loss, valid_f1 = evaluate(device, model, loss_fn, valid_loader)
 
         # Print out performance
         epochs.set_description(f'Train Loss {train_loss:.4f} | Train F1 {train_f1:.4f} | Valid Loss {valid_loss:.4f} | Valid F1 {valid_f1:.4f}')
@@ -111,7 +117,7 @@ def main(args):
             f1 = valid_f1
             best_model = copy.deepcopy(model)
 
-    _, test_f1 = evaluate(device, best_model, loss_fn, test_dataset)
+    _, test_f1 = evaluate(device, best_model, loss_fn, test_loader)
 
     print(f'Test F1 {test_f1:.4f}')
     return test_f1
@@ -129,6 +135,7 @@ if __name__ == "__main__":
     parser.add_argument('--early-stopping', type=int, default=100, help='Patient epochs to wait before early stopping.')
     parser.add_argument('--lr', type=float, default=0.01, help='Learning rate.')
     parser.add_argument('--lamb', type=float, default=0.0, help='L2 reg.')
+    parser.add_argument('--batch-size', type=int, default=2, help='Batch size.')
     # model params
     parser.add_argument("--hid-dim", type=int, default=64, help='Hidden layer dimensionalities.')
     parser.add_argument("--num-stacks", type=int, default=3, help='Number of K.')
@@ -143,7 +150,8 @@ if __name__ == "__main__":
     for _ in range(50):
         f1_lists.append(main(args))
     
-    f1_lists_top = np.array(reversed(sorted(f1_lists)[:10]))
+    reversed(sorted(f1_lists))
+    f1_lists_top = np.array(f1_lists[:10])
 
     mean = np.around(np.mean(f1_lists_top, axis=0), decimals=3)
     std = np.around(np.std(f1_lists_top, axis=0), decimals=3)
