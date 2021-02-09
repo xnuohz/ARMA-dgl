@@ -3,8 +3,18 @@ import torch.nn as nn
 import torch.nn.functional as F
 import dgl
 import dgl.function as fn
+import math
 
 from dgl.nn.pytorch.glob import AvgPooling
+
+def glorot(tensor):
+    if tensor is not None:
+        stdv = math.sqrt(6.0 / (tensor.size(-2) + tensor.size(-1)))
+        tensor.data.uniform_(-stdv, stdv)
+
+def zeros(tensor):
+    if tensor is not None:
+        tensor.data.fill_(0)
 
 class ARMAConv(nn.Module):
     def __init__(self,
@@ -26,16 +36,30 @@ class ARMAConv(nn.Module):
 
         # init weight
         self.w_0 = nn.ModuleDict({
-            str(k): nn.Linear(in_dim, out_dim, bias=bias) for k in range(self.K)
+            str(k): nn.Linear(in_dim, out_dim, bias=False) for k in range(self.K)
         })
         # deeper weight
         self.w = nn.ModuleDict({
-            str(k): nn.Linear(out_dim, out_dim, bias=bias) for k in range(self.K)
+            str(k): nn.Linear(out_dim, out_dim, bias=False) for k in range(self.K)
         })
         # v
         self.v = nn.ModuleDict({
-            str(k): nn.Linear(in_dim, out_dim, bias=bias) for k in range(self.K)
+            str(k): nn.Linear(in_dim, out_dim, bias=False) for k in range(self.K)
         })
+        # bias
+        if bias:
+            self.bias = nn.Parameter(torch.Tensor(self.K, self.T, 1, self.out_dim))
+        else:
+            self.register_parameter('bias', None)
+        
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        for k in range(self.K):
+            glorot(self.w_0[str(k)].weight)
+            glorot(self.w[str(k)].weight)
+            glorot(self.v[str(k)].weight)
+        zeros(self.bias)
 
     def forward(self, g, feats):
         with g.local_scope():
@@ -44,6 +68,7 @@ class ARMAConv(nn.Module):
             degs = g.in_degrees().float().clamp(min=1)
             norm = torch.pow(degs, -0.5).to(feats.device).unsqueeze(1)
             output = None
+
             for k in range(self.K):
                 feats = init_feats
                 for t in range(self.T):
@@ -52,17 +77,26 @@ class ARMAConv(nn.Module):
                     g.update_all(fn.copy_u('h', 'm'), fn.sum('m', 'h'))
                     feats = g.ndata.pop('h')
                     feats = feats * norm
+
                     if t == 0:
                         feats = self.w_0[str(k)](feats)
                     else:
                         feats = self.w[str(k)](feats)
+                    
                     feats += self.dropout(self.v[str(k)](init_feats))
+                    feats += self.v[str(k)](self.dropout(init_feats))
+
+                    if self.bias is not None:
+                        feats += self.bias[k][t]
+                    
                     if self.activation is not None:
                         feats = self.activation(feats)
+                    
                 if output is None:
                     output = feats
                 else:
                     output += feats
+                
             return output / self.K 
 
 class ARMA4NC(nn.Module):

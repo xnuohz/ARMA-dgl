@@ -141,7 +141,7 @@ if __name__ == "__main__":
     for _ in range(50):
         acc_lists.append(main(args))
 
-    reversed(sorted(acc_lists))
+    acc_lists = list(reversed(sorted(acc_lists)))
     acc_lists_top = np.array(acc_lists[:10])
 
     mean = np.around(np.mean(acc_lists_top, axis=0), decimals=3)

@@ -150,7 +150,7 @@ if __name__ == "__main__":
     for _ in range(50):
         f1_lists.append(main(args))
     
-    reversed(sorted(f1_lists))
+    f1_lists = list(reversed(sorted(f1_lists)))
     f1_lists_top = np.array(f1_lists[:10])
 
     mean = np.around(np.mean(f1_lists_top, axis=0), decimals=3)
