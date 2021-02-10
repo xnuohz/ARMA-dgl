@@ -99,6 +99,7 @@ python tu.py --gpu 0 --dataset MUTAG --dropout 0 --num-stacks 4 --num-layers 4
 | Dataset | Cora | Citeseer | Pubmed | PPI |
 | :-: | :-: | :-: | :-: | :-: |
 | Metrics(Table 1.Node classification accuracy/f1) | 83.4±0.6 | 72.5±0.4 | 78.9±0.3 | 90.5±0.3 |
+| Metrics(PyG) | 82.3±0.5 | 70.9±1.1 | 78.3±0.8 | - |
 | Metrics(DGL) | 82.2±0.3 | 72.5±0.2 | 79.4±0.2 | 73.2±0.1 |
 
 ###### Graph Classification
@@ -106,4 +107,4 @@ python tu.py --gpu 0 --dataset MUTAG --dropout 0 --num-stacks 4 --num-layers 4
 | Dataset | Enzymes | Proteins | D&D | MUTAG |
 | :-: | :-: | :-: | :-: | :-: |
 | Metrics(Table 3.Graph classification accuracy.) | 60.6±7.2 | 73.7±3.4 | 77.6±2.7 | 91.5±4.2 |
-| Metrics(DGL) |  |  |  |  |
+| Metrics(DGL) | 98.2±2.2 | 100.0±0.0 | 100.0±0.0 | 13.0±26 |
