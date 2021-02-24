@@ -65,7 +65,7 @@ The DGL's built-in Cora, Pubmed, Citeseer and PPI datasets. Dataset summary:
 ###### Examples
 
 The following commands learn a neural network and predict on the test set.
-Train a ARMA model which follows the original hyperparameters on different datasets.
+Train an ARMA model which follows the original hyperparameters on different datasets.
 ```bash
 # Cora:
 python citation.py --gpu 0
